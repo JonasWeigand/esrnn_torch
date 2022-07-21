@@ -9,7 +9,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from ESRNN.m4_data import prepare_m4_data
+from m4_data import prepare_m4_data
 from ESRNN.utils_evaluation import evaluate_prediction_owa
 from ESRNN.utils_configs import get_config
 
@@ -30,10 +30,7 @@ def main(args):
   else:
       num_obs = 100000
 
-  if args.use_cpu == 1:
-      config['device'] = 'cpu'
-  else:
-      assert torch.cuda.is_available(), 'No cuda devices detected. You can try using CPU instead.'
+  config['device'] = 'cpu'
 
   #Reading data
   print('Reading data')
@@ -99,10 +96,10 @@ def main(args):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Replicate M4 results for the ESRNN model')
-  parser.add_argument("--dataset", required=True, type=str,
+  parser.add_argument("--dataset", required=False, default='Yearly', type=str,
                       choices=['Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Hourly', 'Daily'],
                       help="set of M4 time series to be tested")
-  parser.add_argument("--results_directory", required=True, type=str,
+  parser.add_argument("--results_directory", required=False, default='./data', type=str,
                       help="directory where M4 data will be downloaded")
   parser.add_argument("--gpu_id", required=False, type=int,
                       help="an integer that specify which GPU will be used")

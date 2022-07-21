@@ -8,7 +8,7 @@ def get_config(dataset_name):
     """
     allowed_dataset_names = ('Yearly', 'Monthly', 'Weekly', 'Hourly', 'Quarterly', 'Daily')
     if dataset_name not in allowed_dataset_names:
-        raise ValueError(f'kind must be one of {allowed_kinds}')
+        raise ValueError(f'{dataset_name} must be one of {allowed_dataset_names}')
 
     if dataset_name == 'Yearly':
         return YEARLY
@@ -48,8 +48,15 @@ YEARLY = {
         'output_size': 6,
         'frequency': 'Y'
     },
+    # 'model_parameters': {
+    #     'cell_type': 'LSTM',
+    #     'state_hsize': 40,
+    #     'dilations': [[1], [6]],
+    #     'add_nl_layer': False,
+    #     'random_seed': 117982
+    #}
     'model_parameters': {
-        'cell_type': 'LSTM',
+        'cell_type': 'ODE',
         'state_hsize': 40,
         'dilations': [[1], [6]],
         'add_nl_layer': False,

@@ -116,7 +116,7 @@ class ESRNN(object):
                rnn_weight_decay=0, noise_std=0.001,
                level_variability_penalty=80,
                testing_percentile=50, training_percentile=50, ensemble=False,
-               cell_type='LSTM',
+               cell_type='ODE',
                state_hsize=40, dilations=[[1, 2], [4, 8]],
                add_nl_layer=False, seasonality=[4], input_size=4, output_size=8,
                frequency=None, max_periods=20, random_seed=1,

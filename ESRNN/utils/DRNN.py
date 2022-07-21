@@ -141,6 +141,101 @@ class AttentiveLSTMLayer(nn.Module):
       outputs = torch.stack(outputs)
       return outputs, hidden
 
+class ODELayer(nn.Module):
+    
+    def __init__(self, input_size, hidden_size, dropout=0.0):
+        
+        super(ODELayer, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.nu = input_size
+        self.nx = hidden_size
+        self.n_feat = 2 * hidden_size
+        
+        self.dt = nn.Parameter( torch.tensor(0.01) )
+
+        # calculate network dimensions
+        self.net_in = self.nu + self.nx
+        self.net_out = self.nx
+
+        # Neural network for the linear core
+        self.net_dx_linear = nn.Sequential(
+            nn.Linear(self.net_in, self.net_out,  bias=False))
+
+        # Small initialization is better for multi-step methods
+        for m in self.net_dx_linear.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, mean=0, std=1e-4)
+
+        # Neural network for the nonlinear
+        self.net_dx_nonlinear = nn.Sequential(
+            nn.Linear(self.net_in, self.n_feat),
+            nn.ReLU(),
+            nn.Linear(self.n_feat, self.n_feat),
+            nn.ReLU(),
+            nn.Linear(self.n_feat, self.net_out),
+        )
+
+        # initialize with small weights and enable gradients
+        for m in self.net_dx_nonlinear.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, mean=0, std=1e-4)
+                nn.init.constant_(m.bias, val=0)
+                m.requires_grad_(True)
+
+        self.net_output = nn.Sequential(
+            nn.Linear(self.nx, self.n_feat),
+            nn.ReLU(),
+            nn.Linear(self.n_feat, self.n_feat),
+            nn.ReLU(),
+            nn.Linear(self.n_feat, self.nx),
+        )
+
+        # initialize with small weights and enable gradients
+        for m in self.net_output.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, mean=0, std=1e-4)
+                nn.init.constant_(m.bias, val=0)
+                m.requires_grad_(True)
+
+
+    def forward(self, input, x_step):
+
+        # number of batches and number of time steps depends on input
+        nt = input.shape[0]
+        
+        self._dt_half = self.dt / 2.0
+        self._dt_sixth = self.dt / 6.0
+        
+        x_step = x_step[0, :, :]
+        y_all = []
+
+        # for all time steps t
+        for t in range(nt):
+
+            # get the state and the input of one time step
+            u_step = input[t, :, :]
+
+            # compute one step of runge kutta 4
+            in_xu = torch.cat((x_step, u_step), 1)
+            k1 = self.net_dx_linear(in_xu) + self.net_dx_nonlinear(in_xu)
+            in_xu = torch.cat((x_step + self._dt_half * k1, u_step), 1)
+            k2 = self.net_dx_linear(in_xu) + self.net_dx_nonlinear(in_xu)
+            in_xu = torch.cat((x_step + self._dt_half * k2, u_step), 1)
+            k3 = self.net_dx_linear(in_xu) + self.net_dx_nonlinear(in_xu)
+            in_xu = torch.cat((x_step + self.dt * k3, u_step), 1)
+            k4 = self.net_dx_linear(in_xu) + self.net_dx_nonlinear(in_xu)
+            dx = self._dt_sixth * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+            x_step = x_step + dx
+
+            # compute output network
+            y_step = self.net_output(x_step)
+            y_all.append(y_step)
+            
+        y_all = torch.stack(y_all)
+        return y_all, x_step
+  
+  
 
 class DRNN(nn.Module):
 
@@ -163,6 +258,8 @@ class DRNN(nn.Module):
             cell = ResLSTMLayer
         elif self.cell_type == "AttentiveLSTM":
             cell = AttentiveLSTMLayer
+        elif self.cell_type == 'ODE':
+            cell = ODELayer
         else:
             raise NotImplementedError
 
@@ -278,11 +375,10 @@ if __name__ == '__main__':
     n_layers = 2
     batch_size = 3
     n_windows = 2
-    cell_type = 'ResLSTM'
+    cell_type = 'ODE'
 
     model = DRNN(n_inp, n_hidden, n_layers=n_layers, cell_type=cell_type, dilations=[1,2])
 
     test_x1 = torch.autograd.Variable(torch.randn(n_windows, batch_size, n_inp))
-    test_x2 = torch.autograd.Variable(torch.randn(n_windows, batch_size, n_inp))
 
     out, hidden = model(test_x1)
